@@ -1,0 +1,75 @@
+MODULE Muuttujat
+!*****************************************************
+!Module Name: Muuttujat
+!Version:     0.35?
+!Description: Set some variables here.
+!Date:        15/09/2025
+!Author:      JAOSAutom
+!*****************************************************
+
+    !"PERS" are global when set here or from input. They stay in memory after closing program.
+    !"VAR" are forgotten after program stop/restart or closing.
+    !"CONST" can be used to set something that can't be changed later.
+    !Some Quaternions rotation calculator-> https://www.andre-gaschler.com/rotationconverter/
+    
+    !small bricks one start position-> PERS robtarget AlkuTiiliPos:=[[709.438,-262.065,-90.000],[0.0077501,0.00226728,-0.999961,0.00363622],[-1,-1,-1,0],[9000000000,9000000000,9000000000,9000000000,9000000000,9000000000]];
+    PERS robtarget AlkuTiiliPos:=[[688.481,559.86,-245.932],[0,0,-1,0],[0,-1,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    PERS robtarget AlkuTiiliPos2:=[[600,180,-30],[0,0,-1,0],[-1,-1,-1,0],[9000000000,9000000000,9000000000,9000000000,9000000000,9000000000]];
+    PERS num TiiliPituus := 260;
+    PERS num TiiliKorkeus := 63;
+    PERS num TiiliLeveys := 130;
+    PERS robtarget TiiliPos;    !Variable for brick setpoint that is changed in code.
+    PERS robtarget TiiliNostoPos;   !Variable for lifting/aproaching that is changed in the code.
+    PERS robtarget AlareunanTiiliPos;   !To save some corner value.
+    PERS robtarget TiiliPosKaanto;
+    PERS loaddata TiiliPaino := [3.92, [0,0,25], [1,0,0,0], 0,0,0];  !Variable that gets it's values in the code from the Muuttujat table.
+    PERS num LaastiRako:=3;    !Space for mortar.
+    VAR num AskForFlexPendantNumber:=2; !Variable to store the user's response(1=small bricks, 2=big Bricks)
+    PERS bool VainAlaLaasti:=FALSE;
+    PERS bool xSuuntaLahestyminen:=FALSE;
+    PERS bool ySuuntaLahestyminen:=TRUE;
+    PERS wobjdata TyoObjekti := [FALSE, TRUE, "", [[0,0,0],[1,0,0,0]], [[0,0,0],[1,0,0,0]]];
+    PERS robtarget ErrorPalautusPos;    !For testing errorhandler things.
+    PERS num KyselyOsioNum:=0;
+    PERS num ValintaMuuttuja:=5; !Seems to not be used.
+    VAR orient JokuOrientti;
+    PERS speeddata LiikeNopeus:=[100,1000,5000,1000];
+    PERS speeddata vHidasLiike:=[100,200,5000,1000];
+    PERS speeddata vNormaaliLiike:=[500,500,5000,1000];
+    PERS speeddata vNopeaLiike:=[800,1000,5000,1000];
+    PERS wobjdata WobjMuuttuja;
+    
+    !--Worldzone muuttujia turva-aluetta varten: -----------------------
+    PERS wztemporary wzBox;
+    VAR shapedata volume;
+    CONST pos corner1:=[0,300,-700];        !Rough estimate for or table where bricks are.
+    CONST pos corner2:=[800,-300,-91];      !Rough estimate for or table where bricks are.
+    !-------------------------------------------------------------------
+
+    PERS tooldata toolMuuttuja:= [TRUE,[[0,-95,185.441],[1,0,0,0]],[1,[1,0,0],[1,0,0,0],0,0,0]];    !Questimate for Pursotusohjelma tool.
+    
+    PERS robtarget AlkuKuvausPos:=[[556.633,146,220],[0.0121282,0.01337,-0.999782,0.0104789],[0,-1,0,0],[9000000000,9000000000,9000000000,9000000000,9000000000,9000000000]];   !Start position before taking pictures or moving bricks.
+    PERS robtarget AlkuTiiliPosPieniTiili:=[[709.438,-262.065,-90.000],[0.0077501,0.00226728,-0.999961,0.00363622],[-1,-1,-1,0],[9000000000,9000000000,9000000000,9000000000,9000000000,9000000000]];   !Small pyramid/triangle on attached table.
+    PERS robtarget AlkuTiiliPosIsoTiili:=[[631.549000740051, -670, -190], [0.0160090327262878, 0.011971129104495, 0.999232649803162, -0.0336826257407665], [-1, -1, -1, 0], [9000000000, 9000000000, 9000000000, 9000000000, 9000000000, 9000000000]];  !Large pyramid/triangle on woodworkingtable.
+    
+    PERS num TiiliPituusPieni:=81;    !Variable for Small brick length.
+    PERS num TiiliKorkeusPieni:=22;   !Variable for Small brick height.
+    
+    PERS num TiiliPituusIso:=260;    !Variable for Big brick length. (Accurate measure with caliber 260mm. Add some for mortar.)
+    PERS num TiiliKorkeusIso:=63;   !Variable for Big brick height. (Accurate measure with caliber 59,5mm. Add some for mortar.)
+    PERS num TiiliLeveysIso:= 125;  !!Variable for Big brick width. (Unaccurate guess.)
+    
+    PERS intnum Tiilien_Maara:=10;   !Variable for amount of bricks. Default has been 10 for now.
+    
+    PERS loaddata PieniTiiliPaino:=[0.21, [0,0,1], [1,0,0,0], 0,0,0];  !loaddata variable for small brick weight(in kg) and centrepoint(in mm) of it's mass from TCP.
+    PERS loaddata IsoTiiliPaino:=[3.92, [0,0,25], [1,0,0,0], 0,0,0];  !loaddata variable for large brick weight(in kg) and centrepoint(in mm) of it's mass from TCP.
+    PERS loaddata IsoTiiliJaLaastiPaino:=[4.1, [0,0,30], [1,0,0,0], 0,0,0];  !Arvio
+    
+    !KaariMuuri-aliohjelman muuttujia:
+    PERS robtarget KaariStartPos := [[0,650,-85],[0,0.707107,-0.707107,0],[-1,-1,-1,0],[9E+9,9E+9,9E+9,9E+9,9E+9,9E+9]];
+    PERS robtarget YlaAlkuPos := [[500,300,300],[0,0,-1,0],[-1,-1,-1,0],[9000000000,9000000000,9000000000,9000000000,9000000000,9000000000]];
+    PERS robtarget KaariMidPoint := [[244.719,655.83,-85],[0,0.570264,-0.821462,0],[-1,-1,-1,0],[9E+9,9E+9,9E+9,9E+9,9E+9,9E+9]];
+    PERS robtarget KaariEndPoint := [[458.555,528.893,-85],[0,0.415284,-0.909692,0],[-1,-1,-1,0],[9E+9,9E+9,9E+9,9E+9,9E+9,9E+9]];
+    PERS robtarget CircleCenter1 := [[0,0,-85],[0,0,-1,0],[-1,-1,-1,0],[9E+9,9E+9,9E+9,9E+9,9E+9,9E+9]];
+    
+ENDMODULE

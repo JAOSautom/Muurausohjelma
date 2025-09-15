@@ -1,0 +1,211 @@
+MODULE AppStudioModuli
+    
+!*****************************************************
+!Module Name: AppStudioModuli
+!Version:     1.1
+!Description: Module for AppStudio HMI API calls. Needs a spesific HMI program with buttons made with AppStudio.
+!Date:        15/09/2025
+!Author:      JAOSAutom
+!*****************************************************
+    PERS robtarget TCpRobtargetArvot;
+    VAR string TCPpositio;
+    VAR string TCPorient;
+    VAR string TCPkonfiguraatio;
+
+
+    PROC AloituksenhakuInfo()
+        VAR num VastausNum:=0;
+        VAR bool AlkuPaikkaHaettu:=FALSE;
+        TPErase;
+        WHILE AlkuPaikkaHaettu=FALSE DO
+            TPReadFK VastausNum, "Vie TCP aloitustiilen keskipisteen paikalle.", "Tehty", "Mitä?","Extrainfoa",stEmpty,stEmpty; 
+            IF VastausNum=1 THEN
+                AlkuPaikkaHaettu:=TRUE;
+            ELSEIF VastausNum=2 THEN
+                TPErase;
+                TPWrite "- Ohjelma lukee aloitustiilen position robotin TCP:n sijainnista.";
+                TPWrite "- Käytä apuna rakennukseen käytettävää tiiltä.";
+                TPWrite "- Ota tiili pois, kun aloitat rakentamisen.";
+                TPWrite "- Käden rotaatiolla ei ole vaikutusta.";
+            ELSEIF VastausNum=3 THEN
+                TPErase;
+                TPWrite "Nyt oletetaan, että rakennustason ja robotin taso on samansuuntainen";
+                TPWrite "ja rakennetaan x-akselin suuntaisesti.";
+                TPWrite "Myöhemmin voidaan korjata muurin rakennuskulmaa,";
+                TPWrite "kun alustan liikkuminen selkiytyy";
+                TPWrite "Kulma voidaan asettaa esim. muuttamalla LaskeTiili-aliohjelman workobjectia";
+                TPWrite "Luodaan wobjdata, jolle asetetaan uframe-positioksi muuripätkän aloitupositio.";
+                TPWrite "Sitten muutetaan wobjdata:n rotaatio haluttuun kulmaan.";
+            ELSE
+                Stop;
+            ENDIF
+        ENDWHILE
+        TPErase;
+        AlkuPaikkaHaettu:=FALSE;
+    ENDPROC
+    
+   PROC SuoraRiviAppStudio()
+        VAR num AppStudioKysymys := 0;
+        TPErase;
+        AloituksenhakuInfo;
+        TPReadFK AppStudioKysymys, "Montako tiiltä haluat riviin?", "2", "3", "4", "5", "6";
+        
+        AlkuTiiliPos:=CRobT(\Tool:=tPLOC2DGripper \WObj:=wobj0);
+        AlkuTiiliPos.trans.z:=AlkuTiiliPos.trans.z+2;   !Add 2mm up from base layer. Could use LaastiRako also.
+        
+        IF AppStudioKysymys=1 THEN
+            SuoraRivi 2, 2;
+        ELSEIF AppStudioKysymys=2 THEN
+            SuoraRivi 3, 2;        
+        ELSEIF AppStudioKysymys=3 THEN
+            SuoraRivi 4, 2;
+        ELSEIF AppStudioKysymys=4 THEN
+            SuoraRivi 5, 2;
+        ELSEIF AppStudioKysymys=5 THEN
+            SuoraRivi 6, 2;
+        ELSE
+            stop;
+        ENDIF
+        TPErase;
+    ENDPROC
+    
+    
+   PROC KolmioAppStudio()
+        
+        VAR num AppStudioKysymys := 0;
+        TPErase;
+        AloituksenhakuInfo;
+
+        TPReadFK AppStudioKysymys, "Montako riviä?", "2", "3", "4", "5", "6";
+        AlkuTiiliPos:=CRobT(\Tool:=tPLOC2DGripper \WObj:=wobj0);
+        AlkuTiiliPos.trans.z:=AlkuTiiliPos.trans.z+2;   !Add 2mm up from base layer. Could use LaastiRako also.
+        
+        IF AppStudioKysymys=1 THEN
+            PyramidiMuuri 2;
+        ELSEIF AppStudioKysymys=2 THEN
+            PyramidiMuuri 3;
+        ELSEIF AppStudioKysymys=3 THEN
+            PyramidiMuuri 4;
+        ELSEIF AppStudioKysymys=4 THEN
+            PyramidiMuuri 5;
+        ELSEIF AppStudioKysymys=5 THEN
+            PyramidiMuuri 6;
+        ELSE
+            stop;
+        ENDIF
+        TPErase;
+    ENDPROC
+    
+    PROC KulmaAppStudio()
+        TPErase;
+        AloituksenhakuInfo;
+        AlkuTiiliPos:=CRobT(\Tool:=tPLOC2DGripper \WObj:=wobj0);
+        AlkuTiiliPos.trans.z:=AlkuTiiliPos.trans.z+2;   !Add 2mm up from base layer. Could use LaastiRako also.
+        TPWrite "Building a corner with 3 rows starting from Robots TCP!";
+        WaitTime 3;
+        KulmanMuuraus;
+        TPErase;
+    ENDPROC
+    
+    PROC LueTCPnPosJaOrient()        
+        StopMove;
+        TPErase;
+        WaitTime 0.1;
+        TCpRobtargetArvot:=CRobT(\Tool:=tPLOC2DGripper \WObj:=wobj0);
+        TCPpositio:=ValToStr(TCpRobtargetArvot.trans);
+        TCPorient:=ValToStr(TCpRobtargetArvot.rot);
+        TCPkonfiguraatio:=ValToStr(TCpRobtargetArvot.robconf);
+        TPWrite "positio: "+TCPpositio;
+        TPWrite "orientaatio: "+TCPorient;
+        TPWrite "konfiguraatio: "+TCPkonfiguraatio;
+        TPWrite "Orientaatio asteina EulerZYX-aliohjelman mukaan:";
+        TPWrite "Z: "+ValToStr(EulerZYX(\Z ,TCpRobtargetArvot.rot));
+        TPWrite "Y: "+ValToStr(EulerZYX(\Y ,TCpRobtargetArvot.rot));
+        TPWrite "X: "+ValToStr(EulerZYX(\X ,TCpRobtargetArvot.rot));
+        StartMove;
+    ENDPROC
+    
+    PROC PaksuRiviAppStudio()
+        VAR num AppStudioKysymys := 0;
+        TPErase;
+        AloituksenhakuInfo;
+        
+        TPReadFK AppStudioKysymys, "Montako osiota?", "1", "2", "3", "4", stEmpty;
+        AlkuTiiliPos:=CRobT(\Tool:=tPLOC2DGripper \WObj:=wobj0);
+        AlkuTiiliPos.trans.z:=AlkuTiiliPos.trans.z+2;   !Add 2mm up from base layer. Could use LaastiRako also.
+        
+        IF AppStudioKysymys=1 THEN
+            PaksuMuuri 1;
+        ELSEIF AppStudioKysymys=2 THEN
+            PaksuMuuri 2;
+        ELSEIF AppStudioKysymys=3 THEN
+            PaksuMuuri 3;
+        ELSEIF AppStudioKysymys=4 THEN
+            PaksuMuuri 4;
+        ELSE
+            stop;
+        ENDIF
+        TPErase;
+    ENDPROC
+    
+    
+    PROC UpsideDownAppStudio()
+                
+        VAR num AppStudioKysymys := 0;
+        TPErase;
+        AloituksenhakuInfo;
+
+        TPReadFK AppStudioKysymys, "Montako riviä?", "2", "3", "4", "5", "6";
+        AlkuTiiliPos:=CRobT(\Tool:=tPLOC2DGripper \WObj:=wobj0);
+        AlkuTiiliPos.trans.z:=AlkuTiiliPos.trans.z+2;   !Add 2mm up from base layer. Could use LaastiRako also.
+        
+        IF AppStudioKysymys=1 THEN
+            PyramidUpsideDown 2;
+        ELSEIF AppStudioKysymys=2 THEN
+            PyramidUpsideDown 3;
+        ELSEIF AppStudioKysymys=3 THEN
+            PyramidUpsideDown 4;
+        ELSEIF AppStudioKysymys=4 THEN
+            PyramidUpsideDown 5;
+        ELSEIF AppStudioKysymys=5 THEN
+            PyramidUpsideDown 6;
+        ELSE
+            stop;
+        ENDIF
+        TPErase;
+    ENDPROC
+    
+    
+    !Nopeusasetuksia:
+    PROC AsetaHidasLiike()
+        LiikeNopeus:=vHidasLiike;  ! on sama kuin v100
+    ENDPROC
+    
+    PROC AsetaNormaaliNopeus()
+        LiikeNopeus:=vNormaaliLiike;   ! on sama kuin v500
+    ENDPROC
+    
+    PROC Asetav800Nopeus()
+        LiikeNopeus:=vNopeaLiike;   ! on sama kuin v800
+    ENDPROC
+    
+    
+    
+    !Nama kaksi alla vaatii etta moottorit on paalla, jos niita kayttaa GripTest-appin kautta.
+    PROC GripFull140N()
+        OR_2FG_GRIP 1,33,140,50,0;
+    ENDPROC
+    
+    PROC GripFull80N()
+        OR_2FG_GRIP 1,33,80,50,0;
+    ENDPROC
+    
+    PROC GripFull20N()
+        OR_2FG_GRIP 1,33,20,50,0;
+    ENDPROC
+    
+    PROC GripRelease()
+        OR_2FG_RELEASE 1,71,0;
+    ENDPROC
+
+ENDMODULE
