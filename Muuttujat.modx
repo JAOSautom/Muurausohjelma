@@ -1,9 +1,9 @@
 MODULE Muuttujat
 !*****************************************************
 !Module Name: Muuttujat
-!Version:     0.35?
+!Version:     0.36?
 !Description: Set some variables here.
-!Date:        15/09/2025
+!Date:        23/09/2025
 !Author:      JAOSAutom
 !*****************************************************
 
@@ -37,6 +37,8 @@ MODULE Muuttujat
     PERS speeddata vHidasLiike:=[100,200,5000,1000];
     PERS speeddata vNormaaliLiike:=[500,500,5000,1000];
     PERS speeddata vNopeaLiike:=[800,1000,5000,1000];
+    PERS speeddata vFULLLiike:=[1200,1000,5000,1000];
+    PERS speeddata vSlow30RotateTest:=[30,30,5000,1000];    !Was just for testing.
     PERS wobjdata WobjMuuttuja;
     
     !--Worldzone muuttujia turva-aluetta varten: -----------------------

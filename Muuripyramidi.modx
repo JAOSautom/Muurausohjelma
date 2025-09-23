@@ -4,7 +4,7 @@ MODULE Muuripyramidi
 !Module Name: Muuripyramidi
 !Version:     0.42?
 !Description: Builds short brickwall structures.
-!Date:        15/09/2025
+!Date:        23/09/2025
 !Author:      JAOSAutom
 !*****************************************************
     
@@ -192,29 +192,33 @@ MODULE Muuripyramidi
         ENDIF
         
         n_rivi:=n_rivi-1;    !Laskeminen alkaen 0 historian takia. Voisi muuttaa 1 alkavaksi.
-        
+        !LaastiRako:=5;
         FOR Kerros FROM 0 TO n_rivi DO !For loops for building.
             FOR Tiili FROM 0 TO (n_rivi-Kerros) DO !Tiilit per rivi looppi
-                MoveJ AlkuKuvausPos, vNormaaliLiike, z50, tPLOC2DGripper; !Menee alkukuvauspositioon.
+                
+                TiiliPos := AlkuTiiliPos;   !Varmistaa etta on sama robpositio mista lasketaan muutosta.
+                                    
+                !Laskee tiilien position Kerroksissa:
+                TiiliPos.trans.x := TiiliPos.trans.x - (Tiili * (TiiliPituus + LaastiRako)); !Muuttaa x-position
+                TiiliPos.trans.x := TiiliPos.trans.x - (0.5 * Kerros * (TiiliPituus + LaastiRako)); !Rivin Alkutiilin siirto puolella alarivin jalkeen.
+                TiiliPos.trans.z := TiiliPos.trans.z + (Kerros * (TiiliKorkeus+LaastiRako)); !Muuttaa z-position. Tahan voisi lisata laastin aiheuttaman korkeusmuutoksen.
 
+                IF Tiili=0 THEN
+                    PursotusOhjelma \LongBottom \PituusKerroin:=n_rivi \LongBottomAccuracy:=10 \toolPursotin:=toolMuuttuja;    !Long bottom layer
+                ENDIF
+                
+                MoveJ AlkuKuvausPos, vNormaaliLiike, z50, tPLOC2DGripper; !Menee alkukuvauspositioon.
+                
                 HaeTiili;   !Hakee kameralla ja nostaa tiilin
                 
-                IF AskForFlexPendantNumber=2 THEN
-                    HaeLaasti;
-                ENDIF
-                    
-                TiiliPos := AlkuTiiliPos;   !Varmistaa etta on sama robpositio mista lasketaan muutosta.
-
-                !Laskee tiilien position Kerroksissa:
-                TiiliPos.trans.x := TiiliPos.trans.x - (Tiili * TiiliPituus); !Muuttaa x-position
-                TiiliPos.trans.x := TiiliPos.trans.x - (0.5 * Kerros * TiiliPituus); !Rivin Alkutiilin siirto puolella alarivin jalkeen.
-                TiiliPos.trans.z := TiiliPos.trans.z + (Kerros * TiiliKorkeus); !Muuttaa z-position. Tahan voisi lisata laastin aiheuttaman korkeusmuutoksen.
-
-                IF Kerros=0 AND Tiili=3 THEN
-                    AlareunanTiiliPos:=TiiliPos;    !Tallentaa kulmatiilin position muurin jatkoa varten.
-                ENDIF
+!               IF AskForFlexPendantNumber=2 THEN
+!                   HaeLaasti;
+!               ENDIF
                 
                 LaskeTiili("-x"); !Asettaa tiilin
+                IF Tiili <> (n_rivi-Kerros) THEN
+                    PursotusOhjelma \ShortUpwards \PituusKerroin:=0 \toolPursotin:=toolMuuttuja;    !Short extrusion for end of brick.
+                ENDIF
             ENDFOR
         ENDFOR
     ENDPROC
@@ -247,7 +251,7 @@ MODULE Muuripyramidi
                     WaitTime 0.2;
                     TiiliNostoPos:=CRobT(\Tool:=tPLOC2DGripper \WObj:=wobj0);   !Hakee robotin senhetkisen position.
                     TiiliNostoPos.trans.z:=TiiliNostoPos.trans.z+100;   !Lisaa positioon 100millimetria.
-                    MoveL TiiliNostoPos,vNopeaLiike,z50,tPLOC2DGripper\WObj:=wobj0;   !Nostaa tiilin suoraan ylos sen verran mita lisattiin z-suunnassa.
+                    MoveL TiiliNostoPos,LiikeNopeus,z50,tPLOC2DGripper\WObj:=wobj0;   !Nostaa tiilin suoraan ylos sen verran mita lisattiin z-suunnassa.
                     bPartFound:=FALSE;  !Nollaa bool-muuttujan, joka liittyi siihen etta kamera loysi tiilen locate_hidden-komennolla ja se nostettiin pick_hidden-komennolla.
                     break;
                 ENDIF
@@ -272,15 +276,15 @@ MODULE Muuripyramidi
                 ENDFOR
                 
                 IF bPartFound THEN
-                    pick_hidden 150; !Numero on lahestymiskorkeus 150mm.
-                    OR_2FG_GRIP 1,33,140,80,1; !Sulkee gripperin 50mm asti nopeudella 100%. Voima 140 Newtonia, nopeus 100%. Voima voi olla max 140N.
+                    pick_hidden (TiiliKorkeus+20); !Numero on lahestymiskorkeus esim. 150 mm.
+                    OR_2FG_GRIP 1,33,140,100,1; !Sulkee gripperin 50mm asti nopeudella 100%. Voima max.140 Newtonia, nopeus 100%. Viimeinen luku gripin varmistus(bool)
                     GripLoad IsoTiiliPaino;    !Lisaa tiilin painon loadtargettiin. 5kg ylittyy, kun lasketaan tarttuja(noin 1,4kg) ja tiilin(3,930kg) paino yhteen. Voi vaikuttaa liikkumistarkkuuteen ja moottorien rasitukseen.
-                    WaitTime 0.3;
+                    WaitTime 0.1; !Waits grip, but we can use gripper sensor also.
                     TiiliNostoPos:=CRobT(\Tool:=tPLOC2DGripper \WObj:=wobj0);   !Hakee robotin senhetkisen position.
-                    TiiliNostoPos.trans.z:=TiiliNostoPos.trans.z+350;   !Lisaa positioon 400millimetria.
-                    MoveL TiiliNostoPos,vNopeaLiike,z10,tPLOC2DGripper\WObj:=wobj0;   !Nostaa tiilin suoraan ylos sen verran mita lisattiin z-suunnassa.
-                    !MoveJ Offs(TiiliNostoPos,0,100,0),v300,z10,tPLOC2DGripper\WObj:=wobj0;
-                    bPartFound:=FALSE; !Nollaa varmistukseksi bool-muuttujan, joka liittyi siihen etta kamera loysi tiilen locate_hidden-komennolla ja se nostettiin pick_hidden-komennolla.
+                    TiiliNostoPos.trans.z:=TiiliNostoPos.trans.z+100;   !Lisaa positioon 100millimetria.
+                    MoveL TiiliNostoPos,LiikeNopeus,z10,tPLOC2DGripper\WObj:=wobj0;   !Nostaa tiilin suoraan ylos sen verran mita lisattiin z-suunnassa.
+                    MoveJ Offs(TiiliNostoPos,0,200,200),LiikeNopeus,z100,tPLOC2DGripper\WObj:=wobj0; !Varo nostotasoa.
+                    bPartFound:=FALSE; !Nollaa varmistukseksi bool-muuttujan, joka liittyi siihen, etta kamera loysi tiilen locate_hidden-komennolla ja se nostettiin pick_hidden-komennolla.
                     break;
                 ENDIF
             ENDWHILE
@@ -581,9 +585,9 @@ MODULE Muuripyramidi
     !	n_osiot             -       How many three brick sets to build
     !   n_kerrokset         -       How many rows to build. Needs to be modified. (Optional, Default=1)
     !   Jokuwobj            -       Workobject input, for rotation change. (Optional, Default=wobj0)
-    !   JokuOrientti       -       Optional variable for orient. Is set to [0,0,-1,0] by default to prevent error from lead-through robtarget.
+    !   JokuOrientti        -       Optional variable for orient. Is set to [0,0,-1,0] by default to prevent error from lead-through robtarget.
     !**************************************************************************************************************************************************
-    PROC PaksuMuuri(num n_osiot \num n_kerrokset \wobjdata Jokuwobj \orient JokuOrientti)    !Varmistettu toimivuus simulaatiossa 21.2.2025
+    PROC PaksuMuuri(num n_osiot \num n_kerrokset \wobjdata Jokuwobj \orient JokuOrientti)
         
         IF Present(Jokuwobj) THEN
             WobjMuuttuja:=Jokuwobj;
@@ -597,6 +601,7 @@ MODULE Muuripyramidi
             AlkuTiiliPos.rot := [0,0,-1,0];
         ENDIF
 
+        LaastiRako:=20;   !For safety with gripper-attached extruder.
         TiiliPos:=AlkuTiiliPos;     !Haetaan aloituspositio AlkuTiipos-muuttujasta, johon se on tallennettu esim CrobT:lla
         TiiliPos.rot:=[0,0,-1,0];   !Normalisoidaan orientaatio suoraksi
         TiiliNostoPos:=TiiliPos;    !Varmuudeksi laitetaan aluksi sama arvo. Muuttuu myohemmin LaskeTiili-osiossa
@@ -606,26 +611,26 @@ MODULE Muuripyramidi
         FOR KolmenTiilenOsio FROM 1 TO n_osiot DO
             
 !--------Rakennetaan kolmen tiilen osio:
+            MoveJ AlkuKuvausPos,LiikeNopeus,z20,tPLOC2DGripper\WObj:=WobjMuuttuja;
             Haetiili;
-            MoveJ AlkuKuvausPos,v500,z5,tPLOC2DGripper\WObj:=WobjMuuttuja;
-            Lasketiili "suora";
+            Lasketiili "-x";
+            MoveJ AlkuKuvausPos,LiikeNopeus,z20,tPLOC2DGripper\WObj:=WobjMuuttuja;
             Haetiili;
-            MoveJ AlkuKuvausPos,v500,z5,tPLOC2DGripper\WObj:=WobjMuuttuja;
-            TiiliPos.trans.y := TiiliPos.trans.y + (TiiliLeveys/2) + (LaastiRako/2);
-            TiiliPos.trans.x := TiiliPos.trans.x - (TiiliPituus/2) - LaastiRako;
-            TiiliPos.rot := [0, -0.7071068, 0.7071068, 0]; !Tarkasta viela [0, -0.7071068, 0.7071068, 0]
-            Lasketiili "suora";
+            TiiliPos.trans.y := TiiliPos.trans.y + TiiliLeveys + LaastiRako;
+            LaskeTiili "y";
+            MoveJ AlkuKuvausPos,LiikeNopeus,z20,tPLOC2DGripper\WObj:=WobjMuuttuja;
             Haetiili;
-            MoveJ AlkuKuvausPos,v500,z5,tPLOC2DGripper\WObj:=WobjMuuttuja;
-            TiiliPos.trans.y := TiiliPos.trans.y - TiiliLeveys - LaastiRako;
-            LaskeTiili "suora";
+            TiiliPos.trans.y := TiiliPos.trans.y - (TiiliLeveys/2) - (LaastiRako/2);
+            TiiliPos.trans.x := TiiliPos.trans.x - (TiiliPituus/2) -(TiiliLeveys/2)- LaastiRako;
+            TiiliPos.rot := [0, -0.7071068, 0.7071068, 0]; !Set rotation 90 degrees
+            Lasketiili "-x";
             
 !--------Lasketaan seuraavan kolmen tiilen osion alkupaikka:
             TiiliPos.trans.x:=TiiliPos.trans.x - (TiiliPituus/2) - (TiiliLeveys/2) - LaastiRako;
-            TiiliPos.trans.y:=TiiliPos.trans.y + (TiiliLeveys/2) + (LaastiRako/2);
+            TiiliPos.trans.y:=TiiliPos.trans.y - (TiiliLeveys/2) - (LaastiRako/2);
             TiiliPos.rot:=[0,0,-1,0];
         ENDFOR
-        
+        LaastiRako:=3;  !For other build programs.
 !     ENDFOR
 
         ERROR
@@ -788,13 +793,13 @@ MODULE Muuripyramidi
     
         
     !**************************************************************************************************************************************************
-    ! Description: (13.5.2025)
+    ! Description: (23.9.2025)
     ! 	To extrude mortar with a hose system that is attached to robot arm.
-    !   Building in -x direction with wobj0. Change direction with workobject.
+    !   Building in -x direction with wobj0. Change direction with workobject, but not really used yet, because our system doesn't have a moving base and some other things.
     !
     !Parameters:
-    !	\MuuriWobj	    -	Optional Workobject for wall direction. wobj0 is default.
-    !   \toolPursotin   -   Optional tool. Propably shouldn't be optional. Default value tPLOC2DGripperSIM now.
+    !	\MuuriWobj	    -	Optional Workobject for wall direction. wobj0 is default. (I would incorporate workobjects if we had a moving base and some other things.)
+    !   \toolPursotin   -   Optional tool. Propably shouldn't be optional.
     !
     !**************************************************************************************************************************************************
     PROC PursotusOhjelma(\switch ShortUpwards | switch LongBottom \num PituusKerroin \intnum LongBottomAccuracy \tooldata toolPursotin \wobjdata WobjInput)
@@ -875,6 +880,14 @@ MODULE Muuripyramidi
     ENDPROC 
     
     
+    !**************************************************************************************************************************************************
+    ! Description: (23.9.2025)
+    ! 	Simple function to get absolute value of number. There might be a standard function for this already from ABB.
+    !
+    !Parameters:
+    !	\value	    -	Input number value.
+    !
+    !**************************************************************************************************************************************************
     FUNC num AbsValue(num value)
         IF value < 0 THEN
             RETURN -value;

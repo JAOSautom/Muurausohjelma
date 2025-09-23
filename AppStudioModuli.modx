@@ -4,7 +4,7 @@ MODULE AppStudioModuli
 !Module Name: AppStudioModuli
 !Version:     1.1
 !Description: Module for AppStudio HMI API calls. Needs a spesific HMI program with buttons made with AppStudio.
-!Date:        15/09/2025
+!Date:        23/09/2025
 !Author:      JAOSAutom
 !*****************************************************
     PERS robtarget TCpRobtargetArvot;
@@ -176,7 +176,7 @@ MODULE AppStudioModuli
     ENDPROC
     
     
-    !Nopeusasetuksia:
+    !Perusmitat ja Nopeusasetuksia:
     PROC AsetaHidasLiike()
         LiikeNopeus:=vHidasLiike;  ! on sama kuin v100
     ENDPROC
@@ -188,6 +188,17 @@ MODULE AppStudioModuli
     PROC Asetav800Nopeus()
         LiikeNopeus:=vNopeaLiike;   ! on sama kuin v800
     ENDPROC
+    
+    PROC Asetav1200Nopeus()
+        LiikeNopeus:=vFULLLiike;   ! on sama kuin v800
+    ENDPROC
+    
+    PROC AsetaPerusmitat()
+        TiiliPituus:=260;
+        TiiliLeveys:=130;
+        TiiliKorkeus:=63;
+        TiiliPaino:=[3.92, [0,0,25], [1,0,0,0], 0,0,0];
+    ENDPROC  
     
     
     
