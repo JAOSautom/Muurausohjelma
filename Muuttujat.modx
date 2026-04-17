@@ -1,16 +1,16 @@
 MODULE Muuttujat
 !*****************************************************
 !Module Name: Muuttujat
-!Version:     0.36?
+!Version:     0.37?
 !Description: Set some variables here.
-!Date:        23/09/2025
+!Date:        14/04/2026
 !Author:      JAOSAutom
 !*****************************************************
 
     !"PERS" are global when set here or from input. They stay in memory after closing program.
     !"VAR" are forgotten after program stop/restart or closing.
     !"CONST" can be used to set something that can't be changed later.
-    !Some Quaternions rotation calculator-> https://www.andre-gaschler.com/rotationconverter/
+    !Some Quaternions rotation calculator I found with Google-> https://www.andre-gaschler.com/rotationconverter/
     
     !small bricks one start position-> PERS robtarget AlkuTiiliPos:=[[709.438,-262.065,-90.000],[0.0077501,0.00226728,-0.999961,0.00363622],[-1,-1,-1,0],[9000000000,9000000000,9000000000,9000000000,9000000000,9000000000]];
     PERS robtarget AlkuTiiliPos:=[[688.481,559.86,-245.932],[0,0,-1,0],[0,-1,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];

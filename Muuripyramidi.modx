@@ -2,9 +2,9 @@ MODULE Muuripyramidi
 
 !*****************************************************
 !Module Name: Muuripyramidi
-!Version:     0.42?
-!Description: Builds short brickwall structures.
-!Date:        23/09/2025
+!Version:     0.5
+!Description: Builds short brickwall structures. Some parts are in Finnish language.
+!Date:        14/04/2026
 !Author:      JAOSAutom
 !*****************************************************
     
@@ -18,7 +18,7 @@ MODULE Muuripyramidi
     PROC main()      
         !SpyStart "HOME:/spy.log";  !For logging things in testing.
         !SetOnRobot_Values;         !Sets some values for gripper.
-        !TurvaAlueWZ;               !Example of restricting movement area.
+        !TurvaAlueWZ;               !Example of restricting movement area with WorldZone option.
         !SpyStop;                   !Stops logging.
         
         TPWrite "Run with HMI App or modify main.";
@@ -26,18 +26,18 @@ MODULE Muuripyramidi
         Stop; !stops program.
         
         !Basic logic could be for example:
-        !TurvaAsetukset;
+        !TurvaAsetukset;    !Set some safety settings on.
         !SetOnRobot_Values;
-        !Get AlkutiiliPos   !We used Arm-Side_interface with cRobT() in testing. Could get this with different camera or laser measurements.
-        !SuoraRivi 4, 2;
+        !Save first bricks position to AlkutiiliPos.   !We used Arm-Side_interface with cRobT() in testing. Could get this with different camera or laser measurements.
+        !SuoraRivi 3, 2;
         !Move robot.
-        !Get AlkutiiliPos
-        !SuoraRivi 4, 2;
+        !Save first bricks position to AlkutiiliPos.   !We used Arm-Side_interface with cRobT() in testing. Could get this with different camera or laser measurements.
+        !SuoraRivi 3, 2;
         !Move robot.
         !etc...
         !(Add workobject input from camera or laser measurements to SuoraRivi, PyramidiMuuri and other structure programs to have right orient)
         
-        !Error stuff was for testing.
+        !Error stuff was for testing:
     ERROR
         IF ERRNO=ERR_COLL_STOP THEN
             StopMove;
@@ -80,7 +80,7 @@ MODULE Muuripyramidi
     !**************************************************************************************************************************************************
     PROC TurvaAsetukset()
         TurvaAlueWZ;    !Rajaa liikkumiselta kielletyn suorakulmion alueen, kulmat corner1 ja corner2 must be CONST.
-        !Muita mahdollisesti...
+        !Could add other safety settings here.
     ENDPROC
     
     
@@ -150,30 +150,10 @@ MODULE Muuripyramidi
             OR_2FG_RELEASE 1,71,0;
             GripLoad load0;
             WaitTime 0.1;
-            MoveL Offs(TiiliNostoPos, 0, 0, TiiliKorkeus), vNormaaliLiike, fine, tPLOC2DGripper;
+            MoveL Offs(TiiliNostoPos, 0, 0, TiiliKorkeus), LiikeNopeus, fine, tPLOC2DGripper;
             TPWrite "Building with Big bricks!";
             WaitTime 1;
         ENDIF
-    ENDPROC
-    
-        
-    !**************************************************************************************************************************************************
-    ! Description:
-    !   To ask user to put the arm to the starting position(AlkuTiiliPos) from where it reads robtarget variable to TiiliPos.
-    !   TiiliPos is used and changed in building programs like PyramidiMuuri.
-    ! Parameters:
-    !	-
-    !**************************************************************************************************************************************************
-    PROC KyselyOsio()
-        KyselyOsioNum:=0;
-        WHILE KyselyOsioNum <> 1 DO
-            TPWrite "Put robot arm to grap brick!";
-            TPReadNum KyselyOsioNum, "Give number 1 when ready.";
-            AlkuTiiliPos:=CRobT(\Tool:=tPLOC2DGripper \WObj:=wobj0);
-            AlkuTiiliPos.trans.z := AlkuTiiliPos.trans.z + 300;
-            MoveL AlkuTiiliPos,v100,z1,tPLOC2DGripper\WObj:=wobj0;
-        ENDWHILE
-        KyselyOsioNum:=0;
     ENDPROC
     
     
@@ -184,11 +164,17 @@ MODULE Muuripyramidi
     !	n_rivi             -       How many rows to build on top of eachother.
     !   JokuOrientti       -       Optional variable for orient. Is set to [0,0,-1,0] by default to prevent error from lead-through robtarget.
     !**************************************************************************************************************************************************
-    PROC PyramidiMuuri(num n_rivi \orient JokuOrientti)
+    PROC PyramidiMuuri(num n_rivi \orient JokuOrientti \wobjdata WobjInput)
         IF Present(JokuOrientti) THEN
             AlkuTiiliPos.rot := JokuOrientti;
         ELSE
             AlkuTiiliPos.rot := [0,0,-1,0];
+        ENDIF
+        
+        IF Present(WobjInput) THEN
+            WobjMuuttuja:=WobjInput;
+        ELSE
+            WobjMuuttuja:=wobj0;
         ENDIF
         
         n_rivi:=n_rivi-1;    !Laskeminen alkaen 0 historian takia. Voisi muuttaa 1 alkavaksi.
@@ -201,24 +187,28 @@ MODULE Muuripyramidi
                 !Laskee tiilien position Kerroksissa:
                 TiiliPos.trans.x := TiiliPos.trans.x - (Tiili * (TiiliPituus + LaastiRako)); !Muuttaa x-position
                 TiiliPos.trans.x := TiiliPos.trans.x - (0.5 * Kerros * (TiiliPituus + LaastiRako)); !Rivin Alkutiilin siirto puolella alarivin jalkeen.
-                TiiliPos.trans.z := TiiliPos.trans.z + (Kerros * (TiiliKorkeus+LaastiRako)); !Muuttaa z-position. Tahan voisi lisata laastin aiheuttaman korkeusmuutoksen.
+                TiiliPos.trans.z := TiiliPos.trans.z + (Kerros * (TiiliKorkeus+LaastiRako)); !Muuttaa z-position.
 
+                !Laastin pursotus letkun kautta rivin alle:
                 IF Tiili=0 THEN
                     PursotusOhjelma \LongBottom \PituusKerroin:=n_rivi \LongBottomAccuracy:=10 \toolPursotin:=toolMuuttuja;    !Long bottom layer
                 ENDIF
                 
-                MoveJ AlkuKuvausPos, vNormaaliLiike, z50, tPLOC2DGripper; !Menee alkukuvauspositioon.
+                MoveJ AlkuKuvausPos, LiikeNopeus, z50, tPLOC2DGripper; !Liikkuu alkukuvauspositioon.
                 
                 HaeTiili;   !Hakee kameralla ja nostaa tiilin
                 
 !               IF AskForFlexPendantNumber=2 THEN
-!                   HaeLaasti;
+!                   HaeLaasti;  !Stationary extrusion point program run.
 !               ENDIF
                 
-                LaskeTiili("-x"); !Asettaa tiilin
+                LaskeTiili "-x" \WobjInput:=WobjMuuttuja; !Asettaa tiilin.
+                
+                !Laastin pursotus letkun kautta tiilin paatyyn:
                 IF Tiili <> (n_rivi-Kerros) THEN
-                    PursotusOhjelma \ShortUpwards \PituusKerroin:=0 \toolPursotin:=toolMuuttuja;    !Short extrusion for end of brick.
+                    PursotusOhjelma \ShortUpwards \PituusKerroin:=0 \toolPursotin:=toolMuuttuja;    !Short extrusion for end of brick after placing it.
                 ENDIF
+                
             ENDFOR
         ENDFOR
     ENDPROC
@@ -227,7 +217,7 @@ MODULE Muuripyramidi
     !**************************************************************************************************************************************************
     ! Description:
     !   Finds the brick from the table with SICK PLOC2D camera. Uses commands from PLX.sysx module. Uses Jobs saved with the PLOC2D app.
-    !   AskForFlexPendantNumber is a variable used early on to differentiate with different bricks settings.
+    !   AskForFlexPendantNumber is a variable used early in development to differentiate with different bricks settings.
     ! Parameters:
     !	-
     !**************************************************************************************************************************************************
@@ -236,16 +226,17 @@ MODULE Muuripyramidi
         OR_2FG_RELEASE 1,71,0;  !Avaa gripperin varmuudeksi ennen tiilin nostoa.
         IF AskForFlexPendantNumber=1 THEN
             WHILE TRUE DO   !Loopi, joka etsii tiilen kameralla ja nostaa sen vahan matkaa tarttujalla.
+            !bPartFound on bool-muuttuja kameran PLX-moduulissa ja kertoo loysiko kameran algoritmi tiilen tasolla:
                 IF NOT bPartFound THEN
-                    locate_hidden 4;
+                    locate_hidden 4;    !Sick kameran PLX-moduulin ohjelma.
                     WaitTime 1;
                 ENDIF
                 IF NOT bPartFound THEN
-                    locate_hidden 3;
+                    locate_hidden 3;    !Sick kameran PLX-moduulin ohjelma.
                     WaitTime 2;
                 ENDIF
                 IF bPartFound THEN
-                    pick_hidden 50; !Numero on lahestymiskorkeus 50mm.
+                    pick_hidden 50; !Numero on lahestymiskorkeus 50mm. !Sick kameran PLX-moduulin ohjelma.
                     OR_2FG_GRIP 1,35,20,80,1; !Sulkee gripperin 50mm asti nopeudella 80%. Voima 20 Newtonia. Voima voi olla max 140N.
                     GripLoad PieniTiiliPaino;    !Lisaa tiilin painon loadtargettiin.
                     WaitTime 0.2;
@@ -263,7 +254,7 @@ MODULE Muuripyramidi
                 FOR i FROM 9 TO 11 DO
                     locate_hidden i;        !Job 9-12 on Iso tiili. Nopeutta voi muutta PLX->locate_hidden osion Move_komennosta.
                         WaitTime 1;
-                        IF bPartFound THEN       !bPartFound on bool-muuttuja kameran PLX-moduulissa
+                        IF bPartFound THEN       !bPartFound on bool-muuttuja kameran PLX-moduulissa ja kertoo loysiko kameran algoritmi tiilen tasolla.
                             break;
                         ENDIF
                         IF i=11 THEN            !Movement signal to change bricks position so that camera finds it.
@@ -276,7 +267,7 @@ MODULE Muuripyramidi
                 ENDFOR
                 
                 IF bPartFound THEN
-                    pick_hidden (TiiliKorkeus+20); !Numero on lahestymiskorkeus esim. 150 mm.
+                    pick_hidden (TiiliKorkeus+20); !Numero on lahestymiskorkeus esim. 150 mm. !Sick kameran PLX-moduulin ohjelma.
                     OR_2FG_GRIP 1,33,140,100,1; !Sulkee gripperin 50mm asti nopeudella 100%. Voima max.140 Newtonia, nopeus 100%. Viimeinen luku gripin varmistus(bool)
                     GripLoad IsoTiiliPaino;    !Lisaa tiilin painon loadtargettiin. 5kg ylittyy, kun lasketaan tarttuja(noin 1,4kg) ja tiilin(3,930kg) paino yhteen. Voi vaikuttaa liikkumistarkkuuteen ja moottorien rasitukseen.
                     WaitTime 0.1; !Waits grip, but we can use gripper sensor also.
@@ -300,14 +291,14 @@ MODULE Muuripyramidi
     ! Parameters:
     !	Suunta      -       Approach direction when you set a brick down. Used to prevent scraping nearby bricks. "suora" is for straight down.
     !**************************************************************************************************************************************************
-    PROC LaskeTiili(String Suunta \wobjdata WobjMuuttujaLaskeT)   !Laskee tiilin muuriin sille lasketulle paikalle.
+    PROC LaskeTiili(String Suunta \wobjdata WobjInput)   !Laskee tiilin muuriin sille lasketulle paikalle.
         !VAR intnum OmaErrorLaskuri:=0;
-        IF Present(WobjMuuttujaLaskeT) THEN
-            WobjMuuttuja:=WobjMuuttujaLaskeT;
+        IF Present(WobjInput) THEN
+            WobjMuuttuja:=WobjInput;
         ELSE
             WobjMuuttuja:=wobj0;
         ENDIF 
-        !VAR pathrecid fixture_id;  !Path recording thing. Not used for now 21.3.2025.
+        !VAR pathrecid fixture_id;  !Path recording thing. Saved just to remember it exists.
 
         TiiliNostoPos:=TiiliPos;  !Hakee positiotiedot Tiilipos-muuttujasta.
         TiiliNostoPos.trans.z:=TiiliNostoPos.trans.z+TiiliKorkeus+100; !Lisaa positioon tiilin korkeuden ja 100 millimetria.
@@ -328,10 +319,10 @@ MODULE Muuripyramidi
         ENDIF
         !PathRecStart fixture_id;       !Pathrecording thing. Might be useful to test at some point.
         
-        SingArea \Wrist;    !Prevents possible singularity positions. Added on 07/01/2025 and Untested. 
-        MoveJ TiiliNostoPos, vNormaaliLiike, z1, tPLOC2DGripper\WObj:=wobj0; !Lahestyy laskupaikkaa ylhaalta ja vahan sivusta.
+        SingArea \Wrist;    !To try to prevent possible singularity positions. 
+        MoveJ TiiliNostoPos, LiikeNopeus, z1, tPLOC2DGripper\WObj:=WobjMuuttuja; !Lahestyy laskupaikkaa ylhaalta ja vahan sivusta.
         ConfL\Off;
-        MoveL TiiliPos, vNormaaliLiike, fine, tPLOC2DGripper\WObj:=wobj0; !Laskee tiilin muuriiin.
+        MoveL TiiliPos, v200, fine, tPLOC2DGripper\WObj:=WobjMuuttuja; !Laskee tiilin muuriiin.
         !StorePath;      !Maybe stores the previous path or might need to be before the last lines MoveL?
         ErrorPalautusPos := CRobT(\Tool:=tPLOC2DGripper \WObj:=wobj0);        !Saves current pos for errorhandler
         WaitTime 0.5; !Pieni odotus, jos heiluu.
@@ -339,7 +330,7 @@ MODULE Muuripyramidi
         WaitTime 0.5; ! Odottaa 0,5s etta tarttuja ehtii varmasti aueta.
         GripLoad load0; !Poistaa payload painon(tiili) ja asettaa sen 0kg. 
         TiiliNostoPos.trans.z:=TiiliNostoPos.trans.z+TiiliKorkeus+300; !Lisataan varmistukseksi 300mm korkeutta paluumatkaa varten
-        MoveL Offs(TiiliPos,0,0,300), vNormaaliLiike, z5, tPLOC2DGripper\WObj:=wobj0; !Robotti liikkuu ylospain lasketusta tiilista 300mm.
+        MoveL TiiliNostoPos, LiikeNopeus, z1, tPLOC2DGripper\WObj:=WobjMuuttuja; !Robotti liikkuu ylospain lasketusta tiilista 300mm.
         ConfL\On;
         SingArea \Off;  !Look previous SingArea comment. Sets it off.
         !OmaErrorLaskuri:=0;
@@ -365,11 +356,12 @@ MODULE Muuripyramidi
     
     !**************************************************************************************************************************************************
     ! Description:
-    !   Gets the mortar from the machine that extrudes it. Needs to be modified if extruders place is changed. Currently 15.9.2025 dissassembled from system.
+    !   Gets the mortar on held brick from the machine that extrudes it. Needs to be modified if extruders place is changed.
+    !   Stationary extruder was dissassembled from test system.
     ! Parameters:
     !	-
     !**************************************************************************************************************************************************
-    PROC HaeLaasti() !Korjailtu versio 13/06/2025. Melko OK, lisatty valilokaatio 6_puoliv ja lahemmas pursotinta.
+    PROC HaeLaasti()
         VAR robtarget Location1:=[[525, -13.0635318011045, 197.376590013504], [0.301361352205276, 0.662431120872498, 0.61625212430954, -0.300997793674469], [0, -1, 1, 0], [9000000000, 9000000000, 9000000000, 9000000000, 9000000000, 9000000000]];
         VAR robtarget Location4:=[[525, -140.4208, 188.554], [0.391377, 0.599664, 0.557614, -0.419874], [0, -1, 1, 0], [9000000000, 9000000000, 9000000000, 9000000000, 9000000000, 9000000000]];
         ! vanha orient location4 = [0.276455, 0.666809, 0.632204, -0.281525]
@@ -380,7 +372,7 @@ MODULE Muuripyramidi
         VAR robtarget Location8:=[[588.522, 194.341, 659.663], [0.872325, 0.119478, 0.291962, -0.373541], [0, -2, 1, 0], [9000000000, 9000000000, 9000000000, 9000000000, 9000000000, 9000000000]];
         VAR robtarget Location9:=[[580.002, 254.952, 727.893], [0.911743, -0.0508113, 0.374554, 0.160786], [0, -2, 2, 0], [9000000000, 9000000000, 9000000000, 9000000000, 9000000000, 9000000000]];
         
-        GripLoad IsoTiiliPaino;  !Ilman laastia nyt tiili=3,92kg. Laastilla arvaus 4,1kg ( IsoTiiliJaLaastiPaino )
+        GripLoad IsoTiiliPaino;  !Ilman laastia nyt tiili=3,92kg. Laastilla arvio 4,1kg ( IsoTiiliJaLaastiPaino )
         MoveJ Location1, v100, fine, tPLOC2DGripper\WObj:=wobj0;
         MoveL Location4, v80, fine, tPLOC2DGripper\WObj:=wobj0;
         SetDO ABB_Scalable_IO_0_DO8, 1;
@@ -395,12 +387,12 @@ MODULE Muuripyramidi
         MoveL Location7, v20, fine, tPLOC2DGripper\WObj:=wobj0;
         SetDO ABB_Scalable_IO_0_DO8, 0;
         WaitTime 1;
-        GripLoad IsoTiiliJaLaastiPaino; !Laastilla arvaus 4,1kg ( IsoTiiliJaLaastiPaino
+        GripLoad IsoTiiliJaLaastiPaino; !Laastilla arvio 4,1kg ( IsoTiiliJaLaastiPaino)
         MoveL Offs(Location7, 0, 0, 3), v50, fine, tPLOC2DGripper\WObj:=wobj0;
         WaitTime 0.2;
         MoveL Offs(Location7, 0, -10, -30), v30, fine, tPLOC2DGripper\WObj:=wobj0;
-        MoveJ Location8, vNopeaLiike, z50, tPLOC2DGripper\WObj:=wobj0;
-        MoveJ Location9, vNopeaLiike, z50, tPLOC2DGripper\WObj:=wobj0;        !Nostopositio, koska tarvitsisi ehka varoa pursotinta ja poytaa.
+        MoveJ Location8, LiikeNopeus, z50, tPLOC2DGripper\WObj:=wobj0;
+        MoveJ Location9, LiikeNopeus, z50, tPLOC2DGripper\WObj:=wobj0;        !Nostopositio, koska tarvitsisi ehka varoa pursotinta ja poytaa.
 
     ENDPROC
     
@@ -411,12 +403,19 @@ MODULE Muuripyramidi
     ! Parameters:
     !	n_rivi             -       How many rows to build on top of eachother.
     !   JokuOrientti       -       Optional variable for orient. Is set to [0,0,-1,0] by default to prevent error from lead-through robtarget.
+    !   WobjInput          -       Optional workobject for wall orientation. Default is wobj0.
     !**************************************************************************************************************************************************
-    PROC PyramidUpsideDown(num n_rivi \orient JokuOrientti) !PyramidiMuuri ylosalaisin. Vaatii sivuille tukea aiemmista muurista. Luvut sisaan.
+    PROC PyramidUpsideDown(num n_rivi \orient JokuOrientti \wobjdata WobjInput) !PyramidiMuuri ylosalaisin. Vaatii sivuille tukea aiemmista muurista. Luvut sisaan.
         IF Present(JokuOrientti) THEN
             AlkuTiiliPos.rot := JokuOrientti;
         ELSE
             AlkuTiiliPos.rot := [0,0,-1,0];
+        ENDIF
+        
+        IF Present(WobjInput) THEN
+            WobjMuuttuja:=WobjInput;
+        ELSE
+            WobjMuuttuja:=wobj0;
         ENDIF
         
         n_rivi:=n_rivi-1;   !To count from 0.
@@ -438,63 +437,83 @@ MODULE Muuripyramidi
                 TiiliPos.trans.x := TiiliPos.trans.x + (0.5 * Kerros * (TiiliPituus+LaastiRako)); !Rivin Alkutiilin siirto puolella alarivin jalkeen.
                 TiiliPos.trans.z := TiiliPos.trans.z + (Kerros * (TiiliKorkeus+LaastiRako)); !Muuttaa z-position. Tahan voisi lisata laastin aiheuttaman korkeusmuutoksen.
                 
-                LaskeTiili("suora"); !Asettaa tiilin suoraan ylhaalta
+                LaskeTiili "suora" \WobjInput:=WobjMuuttuja; !Asettaa tiilin suoraan ylhaalta
             ENDFOR
         ENDFOR
         
-        ERROR !Pitaa olla asetettu: Configuration > Controller > General Rapid > CollisionErrorHandling in the system settings.
-        ! Add code for error handling here
-        
+        ERROR
+        !Add code for error handling here
+        !Error handling option: Configuration > Controller > General Rapid > CollisionErrorHandling in the system settings.       
     ENDPROC
 
     
     !**************************************************************************************************************************************************
     ! Description:
-    !   Planned program to modify a workobject. Not ready.
+    !   Creates/modifies a workobject userframe from a robtarget's position and orientation.
     ! Parameters:
-    !	wobjJokuOma             -       wobjdata variable that gets modified.
+    !	TargetPos               -       robtarget whose trans and rot are used as the userframe origin and orientation.
+    !	wobjJokuOma             -       wobjdata variable that gets modified (INOUT).
     !**************************************************************************************************************************************************
-    PROC wobjnTeko(INOUT wobjdata wobjJokuOma)
-        VAR robtarget currentTCP;
+    PROC wobjnTeko(\robtarget TargetPos, INOUT wobjdata wobjJokuOma)
+        VAR robtarget TargetPosCorrection;
+        
+        IF Present(TargetPos) THEN
+            TargetPosCorrection:=TargetPos;
+        ELSE
+!       Could also use RelTool() to rotate tool in place around z-axis. Example is 15 euler degrees of rotation around z-axis:
+!           TargetPosCorrection:=CRobT(\Tool:=tPLOC2DGripper \WObj:=wobj0);   !Reads current tool position and rotation from arm in wobj0
+!           MoveL RelTool(TargetPosCorrection, 0, 0, 0 \Rz:= 15), v100, fine, tPLOC2DGripper; !Rotates tool 15 euler degrees of rotation around z-axis
 
-        !Retrieve the current TCP position
-        currentTCP := CRobT(\Tool:=tPLOC2DGripper \WObj:=wobj0);
+            TargetPosCorrection:=CRobT(\Tool:=tPLOC2DGripper \WObj:=wobj0);    !Saves current tool position and rotation to robtarget
+        ENDIF
+        
+        !Set the uframe of the work object to match the robtarget xyz-position:
+        wobjJokuOma.uframe.trans := TargetPosCorrection.trans;
 
-        !Set the uframe of the new work object to match the TCP position
-        wobjJokuOma.uframe.trans := currentTCP.trans;    ! Set the translation to TCP position
-        wobjJokuOma.uframe.rot := currentTCP.rot;        ! Set the rotation to TCP orientation
-        TPWrite "Orient Crobista = "+ValToStr(wobjJokuOma.uframe.rot);
-        !wobjJokuOma.uframe.rot.q1 := 0;
-        !wobjJokuOma.uframe.rot.q2 := 0;
-        wobjJokuOma.uframe.rot := NOrient(wobjJokuOma.uframe.rot);
-        TPWrite "Uusi (q1,q2=0) orient = "+ValToStr(wobjJokuOma.uframe.rot);
+        !3D Rotation with different frames is a pain to work with and quaternions are not fun or intuitive.
+        TargetPosCorrection.rot := [TargetPosCorrection.rot.q2, TargetPosCorrection.rot.q1, TargetPosCorrection.rot.q4, TargetPosCorrection.rot.q3]; !This sort of works if brickwall xy-plane is parallel to Wobj0.
+        wobjJokuOma.uframe.rot := TargetPosCorrection.rot;  !Set the rotation to workobject uframe
+        
+        wobjJokuOma.uframe.rot := NOrient(wobjJokuOma.uframe.rot);  !Normalizes quaternion values.
+        TPWrite "wobjnTeko: uframe.trans = "+ValToStr(wobjJokuOma.uframe.trans);    !FlexPendant comments.
+        TPWrite "wobjnTeko: uframe.rot = "+ValToStr(wobjJokuOma.uframe.rot);
+        
+        AlkuTiiliPos.trans:=[0,0,0];   !Sets AlkuTiiliPos xyz-position to [0,0,0] for workobject frame use.
     ENDPROC
     
     
     !**************************************************************************************************************************************************
     ! Description:
-    !   Builds a straight brickwall. Currently using extruder attached to tool with PursotusOhjelma.
+    !   Builds a straight brickwall. Currently using extruder attached to tool with PursotusOhjelma on Suunta=2.
+    !   (Could change the "Suunta"(direction) number parameters to something more descriptive.)
     ! Parameters:
     !	Tiilimaara             -       How many bricks.
     !   Suunta                 -       To set approach direction when setting bricks. Look at LaskeTiili() for more info.
     !   JokuTargetti           -       Optional starting robtarget position
     !   JokuOrientti           -       Optional variable for orient. Is set to [0,0,-1,0] by default to prevent error from lead-through robtarget.
+    !   WobjInput              -       Optional workobject for wall orientation. Default is wobj0.
     !**************************************************************************************************************************************************   
-    PROC SuoraRivi(num Tiilimaara, num Suunta \robtarget JokuTargetti \orient JokuOrientti)
-        IF Present(JokuTargetti) THEN
-            AlkuTiiliPos:=JokuTargetti;
-        ELSE
-            AlkuTiiliPos:=CRobT(\Tool:=tPLOC2DGripper \WObj:=wobj0);
-        ENDIF
+    PROC SuoraRivi(num Tiilimaara, num Suunta \robtarget JokuTargetti \orient JokuOrientti \wobjdata WobjInput)
+!        IF Present(JokuTargetti) THEN
+!            AlkuTiiliPos:=JokuTargetti;
+!        ELSE
+!            AlkuTiiliPos:=CRobT(\Tool:=tPLOC2DGripper \WObj:=wobj0);
+!        ENDIF
         
-        IF Present(JokuOrientti) THEN
-            AlkuTiiliPos.rot := JokuOrientti;
+!        IF Present(JokuOrientti) THEN
+!            AlkuTiiliPos.rot := JokuOrientti;
+!        ELSE
+!            AlkuTiiliPos.rot := [0,0,-1,0];
+!        ENDIF
+        
+        IF Present(WobjInput) THEN
+            WobjMuuttuja:=WobjInput;
         ELSE
-            AlkuTiiliPos.rot := [0,0,-1,0];
+            WobjMuuttuja:=wobj0;
         ENDIF
         
         TiiliPos := AlkuTiiliPos;
-        PursotusOhjelma \LongBottom \PituusKerroin:=Tiilimaara \LongBottomAccuracy:=10 \toolPursotin:=toolMuuttuja;    !Long bottom layer
+        PursotusOhjelma \LongBottom \PituusKerroin:=Tiilimaara \LongBottomAccuracy:=10 \toolPursotin:=toolMuuttuja \WobjInput:=WobjMuuttuja;    !Long bottom layer of mortar
         
         Tiilimaara:=Tiilimaara-1;
     	FOR Tiili FROM 0 TO Tiilimaara DO
@@ -503,21 +522,21 @@ MODULE Muuripyramidi
             TiiliPos := AlkuTiiliPos;   !Count from start TiiliPos
             IF Suunta=1 THEN
                 TiiliPos.trans.x := TiiliPos.trans.x + (Tiili * (TiiliPituus + LaastiRako));
-                LaskeTiili("x");
+                LaskeTiili "x" \WobjInput:=WobjMuuttuja;
             ELSEIF Suunta=2 THEN
                 TiiliPos.trans.x := TiiliPos.trans.x - (Tiili * (TiiliPituus + LaastiRako));
-                LaskeTiili("-x");
+                LaskeTiili "-x" \WobjInput:=WobjMuuttuja;
                 OR_2FG_RELEASE 1,70,1;
-                PursotusOhjelma \ShortUpwards \PituusKerroin:=0 \toolPursotin:=toolMuuttuja;    !Short extrusion for end of brick.
+                PursotusOhjelma \ShortUpwards \PituusKerroin:=0 \toolPursotin:=toolMuuttuja \WobjInput:=WobjMuuttuja;    !Short extrusion for end of brick.
             ELSEIF Suunta=3 THEN
                 TiiliPos.trans.y := TiiliPos.trans.y + (Tiili * (TiiliPituus + LaastiRako));
-                LaskeTiili("y");
+                LaskeTiili "y" \WobjInput:=WobjMuuttuja;
             ELSEIF Suunta=4 THEN
                 TiiliPos.trans.y := TiiliPos.trans.y - (Tiili * (TiiliPituus + LaastiRako));
-                LaskeTiili("-y");
+                LaskeTiili "-y" \WobjInput:=WobjMuuttuja;
             ELSEIF Suunta=5 THEN
                 TiiliPos.trans.x := TiiliPos.trans.x - (Tiili * (TiiliPituus + LaastiRako));
-                LaskeTiili("suora");
+                LaskeTiili "suora" \WobjInput:=WobjMuuttuja;
             ELSE
                 TPWrite "Wrong number input. Choose int 1-5.";
                 Stop;
@@ -530,11 +549,11 @@ MODULE Muuripyramidi
     
     !**************************************************************************************************************************************************
     ! Description:
-    !   Second version of cornerbuilding program.
+    !   Second version of cornerbuilding program. Just a demo program.
     ! Parameters:
     !   JokuOrientti       -       Optional variable for orient. Is set to [0,0,-1,0] by default to prevent error from lead-through robtarget.
     !**************************************************************************************************************************************************
-    PROC KulmanMuuraus(\orient JokuOrientti) !Toimii pienilla kerroksilla, kun robotti viela yltaa.
+    PROC KulmanMuuraus(\orient JokuOrientti)
 
         IF Present(JokuOrientti) THEN
             AlkuTiiliPos.rot := JokuOrientti;
@@ -570,8 +589,9 @@ MODULE Muuripyramidi
         TiiliPos.trans.y:=TiiliPos.trans.y+0.5*TiiliPituus-0.5*TiiliLeveys;
         SuoraRivi 1, 3, \JokuTargetti:=TiiliPos \JokuOrientti:=[0, -0.7071, 0.7071, 0];  !y-suunta
 
-        ERROR !Pitaa olla asetettu: Configuration > Controller > General Rapid > CollisionErrorHandling in the system settings.
-        ! Add code for error handling here
+        ERROR
+        !Add code for error handling here
+        !Error handling option: Configuration > Controller > General Rapid > CollisionErrorHandling in the system settings.
         
     
     ENDPROC
@@ -580,30 +600,29 @@ MODULE Muuripyramidi
     !**************************************************************************************************************************************************
     ! Description:
     !   Builds wide brickwall. Three bricks per section.
-    ! 	Paksun muuririvin rakennus. Kolme tiilia osiossa.
     ! Parameters:
     !	n_osiot             -       How many three brick sets to build
     !   n_kerrokset         -       How many rows to build. Needs to be modified. (Optional, Default=1)
-    !   Jokuwobj            -       Workobject input, for rotation change. (Optional, Default=wobj0)
-    !   JokuOrientti        -       Optional variable for orient. Is set to [0,0,-1,0] by default to prevent error from lead-through robtarget.
+    !   JokuOrientti        -       Optional variable for orient. Is set to [0,0,-1,0] by default to prevent error from reading robtarget with lead-through.
+    !   WobjInput           -       Workobject input, for rotation change. (Optional, Default=wobj0)
     !**************************************************************************************************************************************************
-    PROC PaksuMuuri(num n_osiot \num n_kerrokset \wobjdata Jokuwobj \orient JokuOrientti)
-        
-        IF Present(Jokuwobj) THEN
-            WobjMuuttuja:=Jokuwobj;
-        ELSE
-            WobjMuuttuja:=wobj0;
-        ENDIF
+    PROC PaksuMuuri(num n_osiot \num n_kerrokset \orient JokuOrientti \wobjdata WobjInput)
         
         IF Present(JokuOrientti) THEN
             AlkuTiiliPos.rot := JokuOrientti;
         ELSE
             AlkuTiiliPos.rot := [0,0,-1,0];
         ENDIF
+        
+        IF Present(WobjInput) THEN
+            WobjMuuttuja:=WobjInput;
+        ELSE
+            WobjMuuttuja:=wobj0;
+        ENDIF
 
         LaastiRako:=20;   !For safety with gripper-attached extruder.
         TiiliPos:=AlkuTiiliPos;     !Haetaan aloituspositio AlkuTiipos-muuttujasta, johon se on tallennettu esim CrobT:lla
-        TiiliPos.rot:=[0,0,-1,0];   !Normalisoidaan orientaatio suoraksi
+!        TiiliPos.rot:=[0,0,-1,0];   !Normalisoidaan orientaatio suoraksi
         TiiliNostoPos:=TiiliPos;    !Varmuudeksi laitetaan aluksi sama arvo. Muuttuu myohemmin LaskeTiili-osiossa
         
 !      FOR Kerrokset FROM 1 TO n_kerrokset DO       !Jos halutaan tehda kerroksia
@@ -630,7 +649,7 @@ MODULE Muuripyramidi
             TiiliPos.trans.y:=TiiliPos.trans.y - (TiiliLeveys/2) - (LaastiRako/2);
             TiiliPos.rot:=[0,0,-1,0];
         ENDFOR
-        LaastiRako:=3;  !For other build programs.
+        LaastiRako:=5;  !Back to smaller for other build programs.
 !     ENDFOR
 
         ERROR
@@ -642,119 +661,102 @@ MODULE Muuripyramidi
     
     !**************************************************************************************************************************************************
     ! Description:
-    !   Program to try to build a wall structure that is rounded. Uses OrientToCenter function. 
-    !   Needs more testing. Not ready. It is hard to say where someone would need a rounded wall so it is hard to make a general program.
+    !   Builds a curved/arched brick wall along a circular arc. Uses OrientToCenter for brick orientation.
+    !   Arc brick positions are calculated from the starting position angle on the circle.
+    !   This and programs it uses are mostly written by AI based on previous versions of this program. Tested shortly in simulation.
     ! Parameters:
-    !	-
+    !	n_tiili             -       How many bricks per row along the arc.
+    !   n_kerros            -       How many layers to build on top of each other.
+    !   CircleCenter        -       Center position of the arc circle (pos type).
+    !   JokuOrientti        -       Optional orient override. Default uses OrientToCenter.
+    !   WobjInput           -       Optional workobject. Default is wobj0.
     !**************************************************************************************************************************************************
-    PROC KaariMuuri()   !Needs more testing. It is hard to say where someone would need a rounded wall so it is hard to make a general program.
+    PROC KaariMuuri(num n_tiili, num n_kerros, pos CircleCenter \orient JokuOrientti \wobjdata WobjInput)
+        VAR num radius;
+        VAR num start_angle;
+        VAR num brick_arc;
+        VAR num current_angle;
         
-        VAR num radius := 900;    ! Radius of the circle !Lasketaan myohemmin nelio eli hypotenuusa x ja y :sta 
-        VAR num arc_length := 180; ! Desired arc length
-        VAR num theta;             ! Angle in radians
-        VAR num midpoint_angle;    ! Half of theta for midpoint calculation
-    
-        ! Define the circle center and starting position
-        CONST pos CircleCenter := [0,0,-363];         ! Circle center coordinates
-        VAR robtarget KaariStartPos := [[630,670,-363],[0,0,-1,0],[-1,-1,-1,0],[9000000000,9000000000,9000000000,9000000000,9000000000,9000000000]];
-        VAR robtarget MidPoint:=[[0,0,-363],[0,0,-1,0],[-1,-1,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
-        VAR robtarget EndPoint:=[[0,0,-363],[0,0,-1,0],[-1,-1,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+        ! Set workobject
+        IF Present(WobjInput) THEN
+            WobjMuuttuja:=WobjInput;
+        ELSE
+            WobjMuuttuja:=wobj0;
+        ENDIF
         
-        KaariStartPos := CRobT(\Tool:=tPLOC2DGripper \WObj:=wobj0);
+        ! Get starting position from AlkuTiiliPos
+        KaariStartPos := AlkuTiiliPos;
+        IF Present(JokuOrientti) THEN
+            KaariStartPos.rot := JokuOrientti;
+        ENDIF
+        
+        ! Calculate radius from start position to circle center (XY-plane distance)
+        radius := Sqrt(Pow(KaariStartPos.trans.x - CircleCenter.x, 2) + Pow(KaariStartPos.trans.y - CircleCenter.y, 2));
+        
+        ! Calculate starting angle on the circle (degrees)
+        start_angle := ATan2(KaariStartPos.trans.y - CircleCenter.y, KaariStartPos.trans.x - CircleCenter.x);
+        
+        ! Angular step per brick (degrees). Each brick occupies TiiliPituus + LaastiRako of arc length.
+        brick_arc := (180 / Pi) * ((TiiliPituus + LaastiRako) / radius);
+        
+        ! Orient start position to face center
         KaariStartPos.rot := OrientToCenter(KaariStartPos.trans, CircleCenter);
-        radius:= sqrt(Pow(KaariStartPos.trans.x, 2)*Pow(KaariStartPos.trans.x, 2));
         
-        theta := (180/Pi)*(arc_length / radius);               ! Calculate angle in radians !Ei toiminu radiaaneilla, niin lisatty toi (180/Pi)
-        midpoint_angle := theta / 2;                ! Midpoint angle
-    
-        ! Calculate MidPoint and EndPoint positions
-        MidPoint.trans := [
-            CircleCenter.x + radius * Cos(midpoint_angle),
-            CircleCenter.y + radius * Sin(midpoint_angle),
-            CircleCenter.z
-        ];
-        EndPoint.trans := [
-            CircleCenter.x + radius * Cos(theta),
-            CircleCenter.y + radius * Sin(theta),
-            CircleCenter.z
-        ];
+!        TPWrite "KaariMuuri: radius=" + NumToStr(radius, 1) + " start_angle=" + NumToStr(start_angle, 1);
+!        TPWrite "KaariMuuri: brick_arc=" + NumToStr(brick_arc, 1) + " deg, bricks=" + NumToStr(n_tiili, 0);
         
-        ! Update orientations to face the circle center
-        MidPoint.rot := OrientToCenter(MidPoint.trans, CircleCenter);
-        EndPoint.rot := OrientToCenter(EndPoint.trans, CircleCenter);
-        
-    
-        ! Move to start position
-        !MoveL KaariStartPos, v100, z0, tPLOC2DGripper;
-        TiiliNostoPos:=KaariStartPos;
-        TiiliNostoPos.trans.z :=KaariStartPos.trans.z+90;
-        OR_2FG_RELEASE 1,71,0;
         ConfL\Off;
         ConfJ\Off;
-        MoveJ TiiliNostoPos, v100, z10, tPLOC2DGripper;
-        HaeTiili;
-        TiiliPos:=KaariStartPos;
-        LaskeTiili "-x";
         
-        HaeTiili;
-        TiiliPos := MidPoint;
-        LaskeTiili "-x";
+        FOR Kerros FROM 0 TO (n_kerros - 1) DO
+            FOR Tiili FROM 0 TO (n_tiili - 1) DO
+                ! Calculate this brick's angle on the circle
+                current_angle := start_angle + (Tiili * brick_arc);
+                
+                ! Calculate brick position on the arc
+                TiiliPos.trans.x := CircleCenter.x + radius * Cos(current_angle);
+                TiiliPos.trans.y := CircleCenter.y + radius * Sin(current_angle);
+                TiiliPos.trans.z := KaariStartPos.trans.z + (Kerros * (TiiliKorkeus + LaastiRako));
+                TiiliPos.rot := OrientToCenter(TiiliPos.trans, CircleCenter);
+                TiiliPos.robconf := KaariStartPos.robconf;
+                TiiliPos.extax := KaariStartPos.extax;
+                
+                MoveJ AlkuKuvausPos, LiikeNopeus, z50, tPLOC2DGripper;
+                HaeTiili;
+                LaskeTiili "suora" \WobjInput:=WobjMuuttuja;
+            ENDFOR
+        ENDFOR
         
-        HaeTiili;
-        TiiliPos:=EndPoint;
-        LaskeTiili "-x";
-        
-        !toinen kerros:
-        HaeTiili;
-        TiiliPos:=KaariStartPos;
-        TiiliPos.trans.z := TiiliPos.trans.z + TiiliKorkeusIso;
-        LaskeTiili "-x";
-        
-        HaeTiili;
-        TiiliPos := MidPoint;
-        TiiliPos.trans.z := TiiliPos.trans.z + TiiliKorkeusIso;
-        LaskeTiili "-x";
-        
-        HaeTiili;
-        TiiliPos:=EndPoint;
-        TiiliPos.trans.z := TiiliPos.trans.z + TiiliKorkeusIso;
-        LaskeTiili "-x";
-        
-        ! Move along the arc
-        !MoveC MidPoint, EndPoint, v100, z0, tPLOC2DGripper;
-        
-        TPWrite "Done building!";
-        
-        Stop;
+        ConfL\On;
+        ConfJ\On;
+        TPWrite "Curved wall done!";
     ENDPROC
 
     
     !**************************************************************************************************************************************************
     ! Description:
-    !   Not ready.
+    !   Utility to calculate midpoint and endpoint on a circular arc for MoveC usage.
+    !   Uses start angle from KaariStartPos (PERS variable) relative to CircleCenter.
     ! Parameters:
     !	CircleCenter        -       Centre position of a circle.
     !   radius              -       Radius of the circle.
     !   arc_length          -       Length of arc on this circle.
     !**************************************************************************************************************************************************
     PROC Kaarilaskut(pos CircleCenter, num radius, num arc_length)
+        VAR num theta;
+        VAR num midpoint_angle;
+        VAR num start_angle;
         
-!        VAR num radius := radiusIN;    ! Radius of the circle
-!        VAR num arc_length := arc_lengthIN; ! Desired arc length
-        VAR num theta;             ! Angle in radians
-        VAR num midpoint_angle;    ! Half of theta for midpoint calculation
-
-!        VAR pos CircleCenter := CircleCenterIN;         ! Circle center coordinates        
+        ! Calculate the starting angle from KaariStartPos relative to CircleCenter (degrees)
+        start_angle := ATan2(KaariStartPos.trans.y - CircleCenter.y, KaariStartPos.trans.x - CircleCenter.x);
         
-        !radius:=sqrt(Pow(KaariStartPos.trans.x, 2)+Pow(KaariStartPos.trans.y, 2));
-        theta := (180/Pi)*(arc_length / radius);               ! Calculate angle in radians !Ei toiminu radiaaneilla, niin lisatty toi (180/Pi) eli radiaanista euleriksi. (180/Pi)*
-        midpoint_angle := theta / 2;                ! Midpoint angle
+        ! Convert arc_length to angle in degrees
+        theta := (180 / Pi) * (arc_length / radius);
+        midpoint_angle := theta / 2;
     
-        ! Calculate KaariMidPoint and KaariEndPoint positions
-        KaariMidPoint.trans := [(CircleCenter.x+(radius*Sin(midpoint_angle))), (CircleCenter.y+(radius*Cos(midpoint_angle))), CircleCenter.z];
-        KaariEndPoint.trans := [(CircleCenter.x+(radius*Sin(theta))), (CircleCenter.y+(radius*Cos(theta))), CircleCenter.z];
-        
-        !TPWrite "midpointangleCOS = " + NumToStr(Cos(midpoint_angle), 2);   !infoprinttaus
+        ! Calculate KaariMidPoint and KaariEndPoint positions relative to start angle
+        KaariMidPoint.trans := [CircleCenter.x + radius * Cos(start_angle + midpoint_angle), CircleCenter.y + radius * Sin(start_angle + midpoint_angle), CircleCenter.z];
+        KaariEndPoint.trans := [CircleCenter.x + radius * Cos(start_angle + theta), CircleCenter.y + radius * Sin(start_angle + theta), CircleCenter.z];
         
         ! Update orientations to face the circle center
         KaariMidPoint.rot := OrientToCenter(KaariMidPoint.trans, CircleCenter);
@@ -766,7 +768,7 @@ MODULE Muuripyramidi
     
     !**************************************************************************************************************************************************
     ! Description:
-    !   Calculates the TCP orientation towards circle Center position. There might be a better way to do this. Description made on 21.2.2025.
+    !   Calculates the TCP orientation towards circle Center position. Computes yaw and pitch for proper 3D orientation.
     ! Parameters:
     !	TCP             -       Position variable for Tool Center Point.
     !   Center          -       Position variable for circle center.
@@ -776,31 +778,42 @@ MODULE Muuripyramidi
         VAR orient Result_almost;
         VAR pos Direction;
         VAR num Norm;
+        VAR num yaw;
+        VAR num pitch;
     
-        ! Compute direction vector
+        ! Compute direction vector from TCP towards Center
         Direction := [Center.x - TCP.x, Center.y - TCP.y, Center.z - TCP.z];
     
         ! Normalize direction vector
-        Norm := Sqrt(Pow(Direction.x, 2)+Pow(Direction.y, 2)+Pow(Direction.z, 2));  !Radius vector length from CircleCenter.
+        Norm := Sqrt(Pow(Direction.x, 2) + Pow(Direction.y, 2) + Pow(Direction.z, 2));
         Direction := [Direction.x / Norm, Direction.y / Norm, Direction.z / Norm];
     
-        ! Set Z-axis as direction vector, and X/Y axes as needed
-        Result_almost := OrientZYX(ATan2(Direction.y, Direction.x), 0, 0);  
-        Result :=  [Result_almost.q2, Result_almost.q1, Result_almost.q4, Result_almost.q3];   !Flips z-axis, beacause TCP and Center z-direction is 180deg different. It worked and that's good enough for now.
+        ! Calculate yaw (rotation around Z-axis) and pitch (rotation around Y-axis)
+        yaw := ATan2(Direction.y, Direction.x);
+        pitch := ATan2(-Direction.z, Sqrt(Pow(Direction.x, 2) + Pow(Direction.y, 2)));
+        
+        ! Create orientation with yaw and pitch, then flip Z-axis for TCP convention
+        Result_almost := OrientZYX(yaw, pitch, 0);
+        Result := [Result_almost.q2, Result_almost.q1, Result_almost.q4, Result_almost.q3];
         
         RETURN Result;
     ENDFUNC
     
         
     !**************************************************************************************************************************************************
-    ! Description: (23.9.2025)
-    ! 	To extrude mortar with a hose system that is attached to robot arm.
-    !   Building in -x direction with wobj0. Change direction with workobject, but not really used yet, because our system doesn't have a moving base and some other things.
+    ! Description:
+    ! 	To extrude mortar with a hose system that is attached to robot arm. Could be improved.
+    !   Building in -x direction with wobj0. Change direction with workobject, but not really fully tested yet with this program.
+    !   Many of the arguments shouldn't be optional.
+    !   Could add actuated hose clamp to prevent dripping of mortar.
     !
     !Parameters:
-    !	\MuuriWobj	    -	Optional Workobject for wall direction. wobj0 is default. (I would incorporate workobjects if we had a moving base and some other things.)
-    !   \toolPursotin   -   Optional tool. Propably shouldn't be optional.
-    !
+    !   \ShortUpwards       -   For end of brick extrusion.
+    !   \LongBottom         -   For long bottom extrusion below row.
+    !   \PituusKerroin      -   Amount of bricks to calculate bottom extrusion length with TiiliPituus and LaastiRako.
+    !   \LongBottomAccuracy -   Int number to calculate points during long extrusion. Could maybe use other way. Just need to make sure tool stays at right orientation.
+    !   \toolPursotin       -   Optional tool inputdata during tests.
+    !	\WobjInput	        -	Optional Workobject for wall direction. wobj0 is default.
     !**************************************************************************************************************************************************
     PROC PursotusOhjelma(\switch ShortUpwards | switch LongBottom \num PituusKerroin \intnum LongBottomAccuracy \tooldata toolPursotin \wobjdata WobjInput)
         VAR num EndPointX:=0;
@@ -834,9 +847,9 @@ MODULE Muuripyramidi
         StartPointX:= TiiliPos90deg.trans.x + (TiiliPituus/2);
         RowLength:= StartPointX - EndPointX;
         
-        SingArea \Wrist;    !Singularity avoidance ON. Might cause some slight path deviations.
+        SingArea \Wrist;    !Singularity avoidance ON to try to prevent singularity errors. Might cause some slight path deviations.
         
-        ! Estimating distances here for now:
+        ! Estimating distances here for now (Tool dimensions, and how open it is, have an effect on placement of extruding):
         
         IF Present(ShortUpwards) THEN       !Short end of brick extrusion from bottom to top.
             
@@ -849,20 +862,19 @@ MODULE Muuripyramidi
             MoveL Offs(TiiliPos90deg, -((TiiliPituus/2)), 0, (TiiliKorkeus-25)),v20,z1,toolMuuttuja\WObj:=WobjMuuttuja;    !Moves up last set bricks endwall.
             WaitTime 2;
             
-        ELSEIF Present(LongBottom) THEN      !Long bottom stretch of mortar for whole row.
-            !Row enpoint calculation from TiiliPos is: -((PituusKerroin*(TiiliPituus+LaastiRako))-(TiiliPituus/2))    
+        ELSEIF Present(LongBottom) THEN      !Long bottom stretch of mortar for whole row.   
         
             MoveL Offs(TiiliPos90deg, (TiiliPituus/2), 0, -25),v300,z1,toolMuuttuja\WObj:=WobjMuuttuja;  !Move close to bottom level and start of row corner.
-            WaitTime 0.5;   !Wait for movement
+            WaitTime 0.5;   !Wait for movement. Strength of pumping and mortar flow determine timings.
             SetDO ABB_Scalable_IO_0_DO8, 1; !Mortar extruder on.
-            WaitTime 2;
+            WaitTime 2;     !Wait for movement. Strength of pumping and mortar flow determine timings.
             
             StopsCounter := RowLength/Accuracy;   !Accuracy is how many points to calculate to keep tool in right direction/rotation during long extrusion. Default is 5.
             WHILE StopsCounter <= (RowLength -50) DO
                 MoveL Offs(TiiliPos90deg, (TiiliPituus/2)-StopsCounter, 0, -25),v60,z1,toolMuuttuja\WObj:=WobjMuuttuja;
                 StopsCounter := StopsCounter + RowLength/Accuracy;
                 IF AbsValue(StopsCounter) >= AbsValue(RowLength-200) THEN
-                    SetDO ABB_Scalable_IO_0_DO8, 0; !Mortar extruder off.
+                    SetDO ABB_Scalable_IO_0_DO8, 0; !Mortar extruder off. Strength of pumping and mortar flow determine timings.
                 ENDIF
             ENDWHILE
 
@@ -872,7 +884,7 @@ MODULE Muuripyramidi
             WaitTime 3;   !Wait for pumping to end.
             
         ELSE
-            TPWrite "Errorrr. Need switch argument ShortUpwards or LongBottom";
+            TPWrite "Errori. Need switch argument ShortUpwards or LongBottom";
         ENDIF
         
         MoveL Offs(CRobT(\Tool:=tPLOC2DGripper \WObj:=wobj0), 0, 0, TiiliKorkeus),v100,z5,tPLOC2DGripper\WObj:=wobj0;  !Move up a bit to continue other things.
@@ -881,7 +893,7 @@ MODULE Muuripyramidi
     
     
     !**************************************************************************************************************************************************
-    ! Description: (23.9.2025)
+    ! Description:
     ! 	Simple function to get absolute value of number. There might be a standard function for this already from ABB.
     !
     !Parameters:
